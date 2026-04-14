@@ -3201,16 +3201,6 @@ static int qcom_ethqos_suspend(struct device *dev)
 #ifdef CONFIG_MSM_BOOT_TIME_MARKER
 	place_marker("M - Ethernet Suspend End");
 #endif
-	/* Suspend the PHY TXC clock. */
-	if (ethqos->rgmii_txc_suspend_state) {
-		/* Remove TXC clock source from Phy.*/
-		ret = pinctrl_select_state(ethqos->pinctrl,
-					   ethqos->rgmii_txc_suspend_state);
-	if (ret)
-		ETHQOSERR("Unable to set rgmii_txc_suspend_state state, err = %d\n", ret);
-	else
-		ETHQOSINFO("Set rgmii_txc_suspend_state succeed\n");
-	}
 	ETHQOSDBG(" ret = %d\n", ret);
 	ethqos->curr_serdes_speed = 0;
 	return ret;
@@ -3267,16 +3257,6 @@ static int qcom_ethqos_resume(struct device *dev)
 	if (ethqos->current_phy_mode == DISABLE_PHY_SUSPEND_ENABLE_RESUME) {
 		ETHQOSINFO("enable phy at resume\n");
 		ethqos_phy_power_on(ethqos);
-	}
-	/* Resume the PhY TXC clock. */
-	if (ethqos->rgmii_txc_resume_state) {
-		/* Enable TXC clock source from Phy.*/
-		ret = pinctrl_select_state(ethqos->pinctrl,
-					   ethqos->rgmii_txc_resume_state);
-		if (ret)
-			ETHQOSERR("Unable to set rgmii_rxc_resume_state state, err = %d\n", ret);
-		else
-			ETHQOSINFO("Set rgmii_rxc_resume_state succeed\n");
 	}
 	qcom_ethqos_phy_resume_clks(ethqos);
 
