@@ -87,7 +87,6 @@ static int stmmac_xgmac2_mdio_read(struct mii_bus *bus, int phyaddr, int phyreg)
 	unsigned int mii_data = priv->hw->mii.data;
 	u32 tmp, addr, value = MII_XGMAC_BUSY;
 	int ret;
-	bool disable_mdio_peak_vote = priv->plat->disable_mdio_ahb_vote;
 
 	if (atomic_read(&priv->plat->phy_clks_suspended))
 		return -EBUSY;
@@ -101,9 +100,8 @@ static int stmmac_xgmac2_mdio_read(struct mii_bus *bus, int phyaddr, int phyreg)
 	priv->plat->mdio_op_busy = true;
 	reinit_completion(&priv->plat->mdio_op);
 
-	/* Vote ICC SPEED_peak just for this MDIO transaction */
-	if (priv->plat->set_icc_peak_vote && !disable_mdio_peak_vote)
-		priv->plat->set_icc_peak_vote(priv->plat->bsp_priv, 1);
+	if (priv->plat->mdio_icc_acquire)
+		priv->plat->mdio_icc_acquire(priv->plat->bsp_priv);
 
 	/* Wait until any existing MII operation is complete */
 	if (readl_poll_timeout(priv->ioaddr + mii_data, tmp,
@@ -157,8 +155,8 @@ err_disable_clks:
 	priv->plat->mdio_op_busy = false;
 	complete_all(&priv->plat->mdio_op);
 
-	if (priv->plat->set_icc_peak_vote && !disable_mdio_peak_vote)
-		priv->plat->set_icc_peak_vote(priv->plat->bsp_priv, 0);
+	if (priv->plat->mdio_icc_release)
+		priv->plat->mdio_icc_release(priv->plat->bsp_priv);
 
 	return ret;
 }
@@ -172,7 +170,6 @@ static int stmmac_xgmac2_mdio_write(struct mii_bus *bus, int phyaddr,
 	unsigned int mii_data = priv->hw->mii.data;
 	u32 addr, tmp, value = MII_XGMAC_BUSY;
 	int ret;
-	bool disable_mdio_peak_vote = priv->plat->disable_mdio_ahb_vote;
 
 	if (atomic_read(&priv->plat->phy_clks_suspended))
 		return -EBUSY;
@@ -186,9 +183,8 @@ static int stmmac_xgmac2_mdio_write(struct mii_bus *bus, int phyaddr,
 	priv->plat->mdio_op_busy = true;
 	reinit_completion(&priv->plat->mdio_op);
 
-	/* Vote ICC SPEED_peak just for this MDIO transaction */
-	if (priv->plat->set_icc_peak_vote && !disable_mdio_peak_vote)
-		priv->plat->set_icc_peak_vote(priv->plat->bsp_priv, 1);
+	if (priv->plat->mdio_icc_acquire)
+		priv->plat->mdio_icc_acquire(priv->plat->bsp_priv);
 
 	/* Wait until any existing MII operation is complete */
 	if (readl_poll_timeout(priv->ioaddr + mii_data, tmp,
@@ -237,8 +233,8 @@ err_disable_clks:
 	priv->plat->mdio_op_busy = false;
 	complete_all(&priv->plat->mdio_op);
 
-	if (priv->plat->set_icc_peak_vote && !disable_mdio_peak_vote)
-		priv->plat->set_icc_peak_vote(priv->plat->bsp_priv, 0);
+	if (priv->plat->mdio_icc_release)
+		priv->plat->mdio_icc_release(priv->plat->bsp_priv);
 
 	return ret;
 }

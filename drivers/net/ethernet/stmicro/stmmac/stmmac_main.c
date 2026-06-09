@@ -1306,6 +1306,10 @@ static void stmmac_mac_link_down(struct phylink_config *config,
 
 	if (priv->dma_cap.fpesel)
 		stmmac_fpe_link_state_handle(priv, false);
+
+	if (priv->plat->mdio_icc_cancel)
+		priv->plat->mdio_icc_cancel(priv->plat->bsp_priv);
+
 #if IS_ENABLED(CONFIG_ETHQOS_QCOM_VER4)
 	if (priv->plat->enable_power_saving)
 		ret = priv->plat->enable_power_saving(priv->dev, true);
@@ -8517,6 +8521,10 @@ int stmmac_dvr_remove(struct device *dev)
 	if (priv->hw->pcs != STMMAC_PCS_TBI &&
 	    priv->hw->pcs != STMMAC_PCS_RTBI)
 		stmmac_mdio_unregister(ndev);
+
+	if (priv->plat->mdio_icc_cancel)
+		priv->plat->mdio_icc_cancel(priv->plat->bsp_priv);
+
 	destroy_workqueue(priv->wq);
 	mutex_destroy(&priv->lock);
 	bitmap_free(priv->af_xdp_zc_qps);
@@ -8604,6 +8612,9 @@ int stmmac_suspend(struct device *dev)
 		stmmac_fpe_handshake(priv, false);
 		stmmac_fpe_stop_wq(priv);
 	}
+
+	if (priv->plat->mdio_icc_cancel)
+		priv->plat->mdio_icc_cancel(priv->plat->bsp_priv);
 
 	priv->plat->mac_suspended = true;
 	return 0;
