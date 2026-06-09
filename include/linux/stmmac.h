@@ -262,7 +262,9 @@ struct plat_stmmacenet_data {
 	int (*serdes_powerup)(struct net_device *ndev, void *priv);
 	void (*serdes_powerdown)(struct net_device *ndev, void *priv);
 	void (*speed_mode_2500)(struct net_device *ndev, void *priv);
-	void (*set_icc_peak_vote)(void *priv, bool is_peak);
+	void (*mdio_icc_acquire)(void *priv);
+	void (*mdio_icc_release)(void *priv);
+	void (*mdio_icc_cancel)(void *priv);
 #if IS_ENABLED(CONFIG_ETHQOS_QCOM_VER4)
 	int (*enable_power_saving)(struct net_device *ndev, bool enable);
 	void (*xpcs_powersaving)(struct net_device *ndev, bool enable);
