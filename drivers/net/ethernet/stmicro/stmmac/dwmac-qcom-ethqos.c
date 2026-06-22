@@ -8218,6 +8218,8 @@ static int qcom_ethqos_suspend(struct device *dev)
 	    ethqos->current_phy_mode == DISABLE_PHY_SUSPEND_ENABLE_RESUME) {
 		ETHQOSINFO("disable phy at suspend\n");
 		ethqos_phy_power_off(ethqos);
+		if (ethqos_phy_gpio_down_direct(priv, "snps,reset"))
+			ETHQOSERR("unable to set snps,reset to low\n");
 	}
 
 	if (ethqos->gdsc_off_on_suspend) {

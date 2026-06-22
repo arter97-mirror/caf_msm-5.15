@@ -425,7 +425,7 @@ int ethqos_phy_power_on(struct qcom_ethqos *ethqos)
 }
 
 #ifdef CONFIG_OF
-static int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpio_node)
+int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpio_node)
 {
 	struct gpio_desc *reset_gpio;
 
@@ -442,7 +442,7 @@ static int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpi
 	return 0;
 }
 #else
-static int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpio_node)
+int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpio_node)
 {
 	return 0;
 }
@@ -450,8 +450,6 @@ static int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpi
 
 void  ethqos_phy_power_off(struct qcom_ethqos *ethqos)
 {
-	struct stmmac_priv *priv = qcom_ethqos_get_priv(ethqos);
-
 	if (ethqos->reg_emac_phy) {
 		if (regulator_is_enabled(ethqos->reg_emac_phy)) {
 			regulator_disable(ethqos->reg_emac_phy);
@@ -460,9 +458,6 @@ void  ethqos_phy_power_off(struct qcom_ethqos *ethqos)
 	} else {
 		ETHQOSERR("reg_emac_phy is NULL\n");
 	}
-
-	if (ethqos_phy_gpio_down_direct(priv, "snps,phy1_reset"))
-		ETHQOSERR("unable to set snps,phy1_reset to low\n");
 }
 
 void ethqos_free_gpios(struct qcom_ethqos *ethqos)
