@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  */
 
@@ -108,6 +108,45 @@ const struct file_operations iommu_debug_atos_fops = {
 	.read	= iommu_debug_dma_atos_read,
 };
 
+/*
+ * iommu_map()/iommu_unmap() on a fastmap (av8l-fast) domain index the
+ * preallocated page table directly from the iova without any bounds check
+ * (see av8l_fast_map()). The fast DMA allocator normally guarantees the iova
+ * lies within the configured fastmap window, but the map/unmap debugfs files
+ * bypass the allocator, so an out-of-range iova causes an out-of-bounds page
+ * table access and crashes the kernel.
+ *
+ * The fastmap page table is sized to the range returned by
+ * qcom_iommu_get_fast_iova_range() (see arm_smmu_init_domain_context()), so
+ * validate the request against that same range. domain->geometry cannot be
+ * used here: arm-smmu sets it to the full page-table input address space
+ * (2^ias - 1), which is much larger than the fastmap window.
+ */
+static int iommu_debug_check_fastmap_iova(struct iommu_debug_device *ddev,
+					  dma_addr_t iova, size_t size)
+{
+	dma_addr_t base, end;
+	int ret;
+
+	if (!ddev->fastmap_usecase)
+		return 0;
+
+	if (!size || iova + size < iova)
+		return -EINVAL;
+
+	ret = qcom_iommu_get_fast_iova_range(ddev->test_dev, &base, &end);
+	if (ret)
+		return ret;
+
+	if (iova < base || iova + size - 1 > end) {
+		pr_err_ratelimited("iova %pa+0x%zx outside fastmap range [%pa, %pa]\n",
+				   &iova, size, &base, &end);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static ssize_t iommu_debug_map_write(struct file *file, const char __user *ubuf,
 				     size_t count, loff_t *offset)
 {
@@ -163,6 +202,12 @@ static ssize_t iommu_debug_map_write(struct file *file, const char __user *ubuf,
 		pr_err_ratelimited("%s: No domain. Have you selected a usecase?\n", __func__);
 		mutex_unlock(&ddev->state_lock);
 		return -EINVAL;
+	}
+
+	ret = iommu_debug_check_fastmap_iova(ddev, iova, size);
+	if (ret) {
+		mutex_unlock(&ddev->state_lock);
+		return ret;
 	}
 
 	ret = iommu_map(ddev->domain, iova, phys, size, prot);
@@ -234,6 +279,12 @@ static ssize_t iommu_debug_unmap_write(struct file *file,
 		pr_err_ratelimited("No domain. Did you already attach?\n");
 		mutex_unlock(&ddev->state_lock);
 		return -EINVAL;
+	}
+
+	retval = iommu_debug_check_fastmap_iova(ddev, iova, size);
+	if (retval) {
+		mutex_unlock(&ddev->state_lock);
+		return retval;
 	}
 
 	unmapped = iommu_unmap(ddev->domain, iova, size);
