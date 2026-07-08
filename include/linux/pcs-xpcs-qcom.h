@@ -3,7 +3,7 @@
  * Copyright (c) 2020 Synopsys, Inc. and/or its affiliates.
  * Synopsys DesignWare XPCS helpers
  */
-/* Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries. */
 
 #ifndef __LINUX_PCS_XPCS_QCOM_H
 #define __LINUX_PCS_XPCS_QCOM_H
@@ -72,6 +72,8 @@ int qcom_xpcs_verify_an(struct dw_xpcs_qcom *xpcs);
 int qcom_xpcs_lpm(struct dw_xpcs_qcom *xpcs, bool lpm);
 int qcom_xpcs_usxgmii_link_error_detect(struct dw_xpcs_qcom *xpcs, int speed);
 int qcom_xpcs_soft_reset_usxgmii(struct dw_xpcs_qcom *xpcs);
+void qcom_xpcs_link_up_usxgmii(struct dw_xpcs_qcom *xpcs, int speed,
+			       phy_interface_t interface);
 
 #else /* IS_ENABLED(CONFIG_PCS_QCOM) */
 static inline int qcom_xpcs_get_an_mode(struct dw_xpcs_qcom *xpcs,
@@ -188,6 +190,11 @@ static inline int qcom_xpcs_usxgmii_link_error_detect(struct dw_xpcs_qcom *xpcs,
 static inline int qcom_xpcs_soft_reset_usxgmii(struct dw_xpcs_qcom *xpcs)
 {
 	return 0;
+}
+static inline void qcom_xpcs_link_up_usxgmii(struct dw_xpcs_qcom *xpcs,
+					     int speed,
+					     phy_interface_t interface)
+{
 }
 #endif /* IS_ENABLED(CONFIG_PCS_QCOM) */
 #endif /* __LINUX_PCS_XPCS_QCOM_H */
