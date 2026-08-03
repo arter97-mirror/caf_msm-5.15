@@ -1583,7 +1583,6 @@ static int stmmac_init_phy(struct net_device *dev)
 			netdev_err(priv->dev, "no phy at addr %d\n", addr);
 			return -ENODEV;
 		}
-		priv->phydev->mac_managed_pm = true;
 		ret = phylink_connect_phy(priv->phylink, priv->phydev);
 		if (priv->plat->separate_wol_pin) {
 			if (priv->phydev->drv &&
@@ -1629,6 +1628,9 @@ static int stmmac_init_phy(struct net_device *dev)
 				__func__);
 		}
 	}
+
+	if (priv->phydev)
+		priv->phydev->mac_managed_pm = true;
 
 	if (!priv->plat->pmt) {
 		struct ethtool_wolinfo wol = { .cmd = ETHTOOL_GWOL };
