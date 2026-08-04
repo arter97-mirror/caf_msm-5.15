@@ -7418,6 +7418,10 @@ static void ethqos_xpcs_link_up(void *priv_n, unsigned int speed)
 	else if (priv->dev->phydev)
 		qcom_xpcs_link_up(&priv->hw->qxpcs->pcs, 1, priv->plat->interface,
 				  speed, priv->dev->phydev->duplex);
+	else if (priv->plat->fixed_phy_mode &&
+		 (priv->plat->interface == PHY_INTERFACE_MODE_5GBASER ||
+		 priv->plat->interface == PHY_INTERFACE_MODE_USXGMII))
+		qcom_xpcs_link_up_usxgmii(priv->hw->qxpcs, speed, priv->plat->interface);
 
 	/* Check PCS link up and do serdes reset when client reconnects */
 	do {
