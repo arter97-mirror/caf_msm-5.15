@@ -1137,6 +1137,9 @@ int smi230_gyro_probe(struct device *dev, struct smi230_dev *smi230_dev)
 
 	p_smi230_dev->gyro_regs_saved = false;
 
+	/* Gyro powers up in NORMAL mode after POR. */
+	p_smi230_dev->gyro_power_applied = SMI230_GYRO_PM_NORMAL;
+
 	p_smi230_dev->gyro_sus_etr = SMI230_GYRO_DEEP_SUSPEND;
 
 	p_smi230_dev->gyro_frez_etr = SMI230_GYRO_DEEP_SUSPEND;
@@ -1328,10 +1331,10 @@ int smi230_gyro_suspend(struct device *dev)
 {
 	int ret = 0;
 
-	//backup the power mode before sleeping
-	p_smi230_dev->gyro_cfg.power_bak = p_smi230_dev->gyro_cfg.power;
-
 	mutex_lock(&interrupt_handling_lock);
+	/* backup the power mode before sleeping; read it under the lock so it
+	 * cannot race with a concurrent power-mode change from the app layer */
+	p_smi230_dev->gyro_cfg.power_bak = p_smi230_dev->gyro_cfg.power;
 	if (p_smi230_dev->gyro_sus_etr == SMI230_GYRO_SUSPEND) {
 		p_smi230_dev->gyro_cfg.power = SMI230_GYRO_PM_SUSPEND;
 		PINFO("Sensor %s Suspended", SENSOR_GYRO_NAME);
@@ -1360,11 +1363,10 @@ int smi230_gyro_resume(struct device *dev)
 int smi230_gyro_freeze(struct device *dev)
 {
 	int ret = 0;
-
-	//backup the power mode before freezing
-	p_smi230_dev->gyro_cfg.power_bak = p_smi230_dev->gyro_cfg.power;
-
 	mutex_lock(&interrupt_handling_lock);
+	/* backup the power mode before freezing; read it under the lock so it
+	 * cannot race with a concurrent power-mode change from the app layer */
+	p_smi230_dev->gyro_cfg.power_bak = p_smi230_dev->gyro_cfg.power;
 	if (p_smi230_dev->gyro_frez_etr == SMI230_GYRO_SUSPEND) {
 		p_smi230_dev->gyro_cfg.power = SMI230_GYRO_PM_SUSPEND;
 		PINFO("Sensor %s Freez suspended", SENSOR_GYRO_NAME);

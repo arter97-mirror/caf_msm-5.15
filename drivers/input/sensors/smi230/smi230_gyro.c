@@ -413,7 +413,7 @@ int8_t smi230_gyro_get_power_mode(struct smi230_dev *dev)
 int8_t smi230_gyro_set_power_mode(struct smi230_dev *dev)
 {
 	int8_t rslt;
-	uint8_t power_mode, data;
+	uint8_t power_mode, prev;
 	uint8_t is_power_switching_mode_valid = TRUE;
 
 	/* Check for null pointer in the device structure*/
@@ -421,30 +421,44 @@ int8_t smi230_gyro_set_power_mode(struct smi230_dev *dev)
 
 	/* Proceed if null check is fine */
 	if (rslt == SMI230_OK) {
-		/*read the previous power state*/
-		rslt = get_regs(SMI230_GYRO_LPM1_REG, &data, 1, dev);
+		/* Use the last power mode actually applied to the hardware as
+		 * the "previous" state. The LPM1 register cannot be trusted as
+		 * the current power mode: field logs show that while the device
+		 * is settled in deep suspend (read taken ~400 ms after entry,
+		 * well past the 200 ms switching time) LPM1 still reads back
+		 * 0x00, which is indistinguishable from NORMAL. Relying on that
+		 * value made a redundant deep-suspend request (e.g. app layer
+		 * and PM suspend racing to request it) mis-detect a
+		 * NORMAL->DEEP_SUSPEND transition and re-run save_context while
+		 * already in deep suspend, where the configuration registers are
+		 * lost (read as 0). That zeroed interrupt/FIFO config was then
+		 * written back on resume, disabling the interrupts (IRQ halt). */
+		prev = dev->gyro_power_applied;
+		power_mode = dev->gyro_cfg.power;
 
-		if (rslt == SMI230_OK) {
-			power_mode = dev->gyro_cfg.power;
-
+		{
 			/*switching between normal mode and the suspend modes is allowed, it is not possible to switch
 			 * between suspend and deep suspend and vice versa. Check for invalid power switching (i.e)
 			 * deep suspend to suspend */
 			if ((power_mode == SMI230_GYRO_PM_SUSPEND) &&
-			    (data == SMI230_GYRO_PM_DEEP_SUSPEND)) {
+			    (prev == SMI230_GYRO_PM_DEEP_SUSPEND)) {
 				/* Updating the status */
 				is_power_switching_mode_valid = FALSE;
 			}
 
 			/* Check for invalid power switching (i.e) from suspend to deep suspend */
 			if ((power_mode == SMI230_GYRO_PM_DEEP_SUSPEND) &&
-			    (data == SMI230_GYRO_PM_SUSPEND)) {
+			    (prev == SMI230_GYRO_PM_SUSPEND)) {
 				/* Updating the status */
 				is_power_switching_mode_valid = FALSE;
 			}
 
+			/* Save the context only on a genuine NORMAL -> DEEP_SUSPEND
+			 * transition. A redundant deep-suspend request (prev already
+			 * DEEP_SUSPEND) is correctly ignored, so the valid saved
+			 * context is never overwritten with the lost config. */
 			if ((power_mode == SMI230_GYRO_PM_DEEP_SUSPEND) &&
-			    (data == SMI230_GYRO_PM_NORMAL)) {
+			    (prev == SMI230_GYRO_PM_NORMAL)) {
 				PINFO("SMI230 gyro save context");
 				rslt = smi230_gyro_save_context(dev);
 				if (rslt != SMI230_OK) {
@@ -454,33 +468,116 @@ int8_t smi230_gyro_set_power_mode(struct smi230_dev *dev)
 
 			/* Check if power switching mode is valid*/
 			if (is_power_switching_mode_valid) {
-				/* Write power to power register */
-				rslt = set_regs(SMI230_GYRO_LPM1_REG,
-						&power_mode, 1, dev);
+				uint8_t attempt;
+				uint8_t readback;
 
-				if (rslt == SMI230_OK) {
+				/* Write the power mode and verify it was
+				 * accepted by reading the register back. Retry
+				 * on mismatch to guard against a silently
+				 * dropped write (e.g. bus glitch/NACK). */
+				rslt = SMI230_E_COM_FAIL;
+				for (attempt = 0;
+				     attempt < SMI230_POWER_MODE_SET_RETRY;
+				     attempt++) {
+					rslt = set_regs(SMI230_GYRO_LPM1_REG,
+							&power_mode, 1, dev);
+					if (rslt != SMI230_OK)
+						continue;
+
 					/* Time required to switch the power mode */
 					dev->delay_ms(
 						SMI230_GYRO_POWER_MODE_CONFIG_DELAY);
+
+					/* LPM1 read-back is not reliable in deep
+					 * suspend, so it cannot be used to verify
+					 * this write. Cross-check instead that the
+					 * configuration section was actually
+					 * powered down: in deep suspend the config
+					 * registers are lost and read back as the
+					 * reset value 0. Use INT_CTRL as a witness
+					 * because it is non-zero whenever the
+					 * new-data/FIFO interrupt is enabled (its
+					 * value was captured by save_context just
+					 * before this write, while still alive). */
+					if (power_mode ==
+					    SMI230_GYRO_PM_DEEP_SUSPEND) {
+						uint8_t witness =
+							dev->gyro_regs
+								.gyro_int_ctrl_reg;
+
+						/* No non-zero witness available:
+						 * cannot cross-check, accept the
+						 * write. */
+						if (witness == 0) {
+							rslt = SMI230_OK;
+							break;
+						}
+
+						rslt = get_regs(
+							SMI230_GYRO_INT_CTRL_REG,
+							&readback, 1, dev);
+						if (rslt != SMI230_OK)
+							continue;
+
+						/* Config lost -> deep suspend
+						 * confirmed. */
+						if (readback != witness) {
+							rslt = SMI230_OK;
+							break;
+						}
+
+						/* Config still intact -> the
+						 * write did not take effect,
+						 * retry. */
+						rslt = SMI230_E_COM_FAIL;
+						continue;
+					}
+
+					rslt = get_regs(SMI230_GYRO_LPM1_REG,
+							&readback, 1, dev);
+					if (rslt != SMI230_OK)
+						continue;
+
+					if (readback == power_mode) {
+						rslt = SMI230_OK;
+						break;
+					}
+
+					/* Register did not take the value */
+					rslt = SMI230_E_COM_FAIL;
 				}
+
+				if (rslt != SMI230_OK)
+					return rslt;
+
+				/* Write succeeded: record the applied power mode so
+				 * the next call detects transitions correctly. */
+				dev->gyro_power_applied = power_mode;
+
+				/* Restore on a genuine DEEP_SUSPEND -> NORMAL
+				 * transition. */
 				if ((power_mode == SMI230_GYRO_PM_NORMAL) &&
-				    (data == SMI230_GYRO_PM_DEEP_SUSPEND)) {
+				    (prev == SMI230_GYRO_PM_DEEP_SUSPEND)) {
 					PINFO("SMI230 gyro restore context");
 					rslt = smi230_gyro_restore_context(dev);
-					dev->delay_ms(100);
 					if (rslt != SMI230_OK) {
 						return rslt;
 					}
 				}
 
 			} else {
-				/* Return ok but with message */
-				PINFO("SMI230 gyro Invalid power state transition");
+				/* Direct suspend <-> deep-suspend switching is
+				 * not supported by the hardware (datasheet
+				 * 7.3.2). Rather than failing the caller (which
+				 * would abort a system suspend), treat the
+				 * request as a no-op: the device is already in a
+				 * low-power state, so leave it there and keep the
+				 * tracked applied mode unchanged. */
+				PINFO("SMI230 gyro ignoring unsupported suspend<->deep-suspend switch");
 				rslt = SMI230_OK;
 			}
 		}
 	}
-
 	return rslt;
 }
 
@@ -550,7 +647,9 @@ int8_t smi230_gyro_restore_context(struct smi230_dev *dev)
 		return ret;
 
 	if (dev->gyro_regs_saved) {
-		get_regs(SMI230_GYRO_LPM1_REG, &power, 1, dev);
+		ret = get_regs(SMI230_GYRO_LPM1_REG, &power, 1, dev);
+		if (ret)
+			return ret;
 		if (power != 0)
 			return -1;
 
