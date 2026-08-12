@@ -4935,11 +4935,10 @@ static int msm_nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 		ops.datbuf = buf;
 		ops.oobbuf = NULL;
 		ret =  msm_nand_write_oob(mtd, ofs, &ops);
-		if (ret) {
+		if (ret)
 			pr_err("write failed with err:%d for ofs:0x%x\n",
 						ret, (uint32_t)ofs);
-			goto free_mem;
-		}
+
 		/* Mark 2nd page for NON-ONFI with zeroes else last page with zeros */
 		if (!flash->is_onfi_compliant)
 			ofs += (loff_t)mtd->writesize;
@@ -4947,7 +4946,6 @@ static int msm_nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 			ofs += (loff_t)((pages_per_block - 1) * mtd->writesize);
 	} while (++mark_block_bad_page < BAD_BLOCK_CHECK_PAGES);
 
-free_mem:
 	kfree(buf);
 out:
 	return ret;
