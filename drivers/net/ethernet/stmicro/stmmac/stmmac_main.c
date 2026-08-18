@@ -605,10 +605,8 @@ static void stmmac_get_tx_hwtstamp(struct stmmac_priv *priv,
 	if (priv->plat->insert_ts_pktid) {
 		do {
 			pktid = readl(ioaddr + XGMAC_TXTIMESTAMP_PKTID);
-			if (pktid == 0) {
-				pr_info("Received packet with pktid = 0\n");
+			if (pktid == 0)
 				break;
-			}
 			if (pktid != tx_q->pid) {
 				pr_info("pktid = %d, txq_pktid = %d\n", pktid, tx_q->pid);
 				if (!stmmac_get_mac_tx_timestamp(priv, priv->hw, &ns))
