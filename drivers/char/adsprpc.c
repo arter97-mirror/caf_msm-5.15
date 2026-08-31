@@ -3152,6 +3152,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
@@ -3185,6 +3188,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
@@ -3211,6 +3217,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
@@ -3348,6 +3357,15 @@ int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	PERF_END);
 	trace_fastrpc_msg("inv_args_1: end");
 
+	/*
+	 * Store submission timestamp in ctx before sending to DSP.
+	 * For async invokes, perf->invoke will be updated in the collector
+	 * thread (fastrpc_wait_on_async_queue) where ctx is still valid,
+	 * measuring full end-to-end latency consistent with the sync path.
+	 */
+	if (fl->profile && isasyncinvoke)
+		ctx->invoke_start_time = invoket;
+
 	PERF(fl->profile, GET_COUNTER(perf_counter, PERF_LINK),
 	VERIFY(err, 0 == (err = fastrpc_invoke_send(ctx,
 		kernel, invoke->handle)));
@@ -3426,9 +3444,6 @@ int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 	}
 
 invoke_end:
-	if (fl->profile && !interrupted && isasyncinvoke)
-		fastrpc_update_invoke_count(invoke->handle, perf_counter,
-						&invoket);
 	return err;
 }
 
@@ -3504,6 +3519,15 @@ bail:
 		async_res->result = ierr;
 	if (ctx) {
 		if (fl->profile && ctx->perf && ctx->handle > FASTRPC_STATIC_HANDLE_MAX) {
+			/*
+			 * Update invoke/count perf counters here where ctx->perf is
+			 * guaranteed valid. This measures full end-to-end async latency
+			 * (submit → DSP → collect), consistent with the sync path.
+			 * invoke_start_time was stored in ctx before fastrpc_invoke_send
+			 * in fastrpc_internal_invoke.
+			 */
+			fastrpc_update_invoke_count(ctx->handle, perf_counter,
+				&ctx->invoke_start_time);
 			trace_fastrpc_perf_counters(ctx->handle, ctx->sc,
 			ctx->perf->count, ctx->perf->flush, ctx->perf->map,
 			ctx->perf->copy, ctx->perf->link, ctx->perf->getargs,
