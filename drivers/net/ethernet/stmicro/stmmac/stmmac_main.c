@@ -1608,7 +1608,7 @@ static int stmmac_init_phy(struct net_device *dev)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 	struct device_node *node;
-	int ret;
+	int ret = 0;
 
 	priv->boot_kpi = false;
 
@@ -1629,35 +1629,13 @@ static int stmmac_init_phy(struct net_device *dev)
 			return -ENODEV;
 		}
 		ret = phylink_connect_phy(priv->phylink, priv->phydev);
-		if (priv->plat->separate_wol_pin) {
-			if (priv->phydev->drv &&
-			    priv->phydev->drv->config_intr &&
-			    !priv->phydev->drv->config_intr(priv->phydev)) {
-				pr_err(" qcom-ethqos: %s config_phy_intr successful after connect\n",
-				       __func__);
-				priv->plat->request_phy_wol(priv->plat);
-			}
-			pr_info("stmmac phy polling mode\n");
-			priv->phydev->irq = PHY_POLL;
-		} else {
-			if (priv->plat->phy_intr_en_extn_stm) {
-				priv->phydev->irq = PHY_MAC_INTERRUPT;
-				priv->phydev->interrupts =  PHY_INTERRUPT_ENABLED;
-
-				if (priv->phydev->drv &&
-				    priv->phydev->drv->config_intr &&
-				    !priv->phydev->drv->config_intr(priv->phydev)) {
-					pr_err(" qcom-ethqos: %s config_phy_intr successful after connect\n",
-					       __func__);
-					priv->plat->request_phy_wol(priv->plat);
-				}
-			} else {
-				pr_info("stmmac phy polling mode\n");
-				priv->phydev->irq = PHY_POLL;
-			}
+		if (ret) {
+			netdev_err(priv->dev, "phylink_connect_phy failed: %d\n", ret);
+			priv->phydev = NULL;
+			return ret;
 		}
-		phy_attached_info(priv->phydev);
 	}
+
 	pr_info(" qcom-ethqos: %s early eth setting stmmac init\n",
 		__func__);
 
@@ -1672,6 +1650,35 @@ static int stmmac_init_phy(struct net_device *dev)
 			pr_info(" qcom-ethqos: %s priv->phydev is set with dev->phydev\n",
 				__func__);
 		}
+	}
+
+	if (priv->phydev) {
+		if (priv->plat->separate_wol_pin) {
+			if (priv->phydev->drv &&
+			    priv->phydev->drv->config_intr &&
+			    !priv->phydev->drv->config_intr(priv->phydev)) {
+				pr_err(" qcom-ethqos: %s config_phy_intr successful after connect\n",
+				       __func__);
+				priv->plat->request_phy_wol(priv->plat);
+			}
+			pr_info("stmmac phy polling mode\n");
+			priv->phydev->irq = PHY_POLL;
+		} else if (priv->plat->phy_intr_en_extn_stm) {
+			priv->phydev->irq = PHY_MAC_INTERRUPT;
+			priv->phydev->interrupts =  PHY_INTERRUPT_ENABLED;
+
+			if (priv->phydev->drv &&
+			    priv->phydev->drv->config_intr &&
+			    !priv->phydev->drv->config_intr(priv->phydev)) {
+				pr_err(" qcom-ethqos: %s config_phy_intr successful after connect\n",
+				       __func__);
+				priv->plat->request_phy_wol(priv->plat);
+			}
+		} else {
+			pr_info("stmmac phy polling mode\n");
+			priv->phydev->irq = PHY_POLL;
+		}
+		phy_attached_info(priv->phydev);
 	}
 
 	if (priv->phydev)
