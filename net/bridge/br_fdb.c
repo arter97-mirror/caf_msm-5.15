@@ -201,6 +201,10 @@ static void fdb_delete(struct net_bridge *br, struct net_bridge_fdb_entry *f,
 		       bool swdev_notify)
 {
 	trace_fdb_delete(br, f);
+	pr_debug("bridge: FDB DELETE: MAC=%pM vid=%u port=%s swdev_notify=%d\n",
+		 f->key.addr.addr, f->key.vlan_id,
+		 f->dst ? f->dst->dev->name : "none",
+		 swdev_notify);
 
 	if (test_bit(BR_FDB_STATIC, &f->flags))
 		fdb_del_hw_addr(br, f->key.addr.addr);
@@ -613,6 +617,17 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 			/* fastpath: update of existing entry */
 			if (unlikely(source != READ_ONCE(fdb->dst) &&
 				     !test_bit(BR_FDB_STICKY, &fdb->flags))) {
+				const struct net_bridge_port *old_dst = READ_ONCE(fdb->dst);
+
+				pr_debug("bridge: FDB PORT CHANGE: MAC=%pM vid=%u old_port=%s new_port=%s\n",
+					 addr, vid,
+					 old_dst ? old_dst->dev->name : "none",
+					 source->dev->name);
+
+				/* Send DELNEIGH for old port to regular netlink listeners */
+				fdb_notify(br, fdb, RTM_DELNEIGH, false);
+				pr_debug("bridge: Sent RTM_DELNEIGH to netlink for MAC=%pM on port=%s\n",
+					 addr, old_dst ? old_dst->dev->name : "none");
 				br_switchdev_fdb_notify(br, fdb, RTM_DELNEIGH);
 				WRITE_ONCE(fdb->dst, source);
 				fdb_modified = true;

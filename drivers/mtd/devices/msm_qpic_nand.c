@@ -1507,7 +1507,7 @@ static void msm_nand_prep_rw_cmd_desc(struct mtd_oob_ops *ops,
 			curr_ce++;
 			msm_nand_prep_ce(curr_ce,
 					MSM_NAND_ERASED_CW_DETECT_CFG(info),
-					WRITE, SET_ERASED_PAGE_DET);
+					WRITE, SET_ERASED_PAGE_DET(info->flash_dev.ecc_capability));
 			curr_ce++;
 		}
 	} else {

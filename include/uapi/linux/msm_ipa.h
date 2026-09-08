@@ -163,6 +163,7 @@
 #define IPA_IOCTL_ADD_PPPOE_MAPPING             107
 #define IPA_IOCTL_SET_TUPLE_INFO                108
 #define IPA_IOCTL_ADD_RGIP                      109
+#define IPA_IOCTL_SET_IPOGRE_IFACE_ADDR         110
 
 /**
  * max size of the header to be inserted
@@ -608,10 +609,13 @@ enum ipa_client_type {
 	IPA_CLIENT_ETHERNET_CONS3		= 153,
 
 	IPA_CLIENT_ETHERNET_PROD4		= 154,
-	IPA_CLIENT_ETHERNET_CONS4		= 155
+	IPA_CLIENT_ETHERNET_CONS4		= 155,
+
+	/* RESERVED PROD			= 156, */
+	IPA_CLIENT_WLAN_STABRG_CONS	= 157,
 };
 
-#define IPA_CLIENT_MAX (IPA_CLIENT_ETHERNET_CONS4 + 1)
+#define IPA_CLIENT_MAX (IPA_CLIENT_WLAN_STABRG_CONS + 1)
 
 #define IPA_CLIENT_WLAN2_PROD IPA_CLIENT_A5_WLAN_AMPDU_PROD
 #define IPA_CLIENT_Q6_DL_NLO_DATA_PROD IPA_CLIENT_Q6_DL_NLO_DATA_PROD
@@ -705,6 +709,7 @@ enum ipa_client_type {
 
 #define IPA_CLIENT_IS_WLAN_CONS(client) \
 	((client) == IPA_CLIENT_WLAN1_CONS || \
+	(client) == IPA_CLIENT_WLAN_STABRG_CONS || \
 	(client) == IPA_CLIENT_WLAN2_CONS || \
 	(client) == IPA_CLIENT_WLAN3_CONS || \
 	(client) == IPA_CLIENT_WLAN2_CONS1 || \
@@ -1954,7 +1959,8 @@ struct ipa_ipogre_header_add_procparams {
 	uint32_t output_ip_version :1;
 	uint32_t Tunnel_Id : 4;
 	uint32_t Mux_Id : 8;
-	uint32_t reserved :18;
+	uint32_t non_ipogre: 1;
+	uint32_t reserved :17;
 };
 
 /**
@@ -2855,6 +2861,7 @@ struct ipa_ioc_tx_intf_prop {
 	char hdr_name[IPA_RESOURCE_NAME_MAX];
 	enum ipa_hdr_l2_type hdr_l2_type;
 	uint32_t tc_bmap;
+	enum ipa_client_type sta_pipe;
 };
 
 /**
@@ -3619,6 +3626,13 @@ struct ipa_lan_client_msg {
 	uint8_t mac[IPA_MAC_ADDR_SIZE];
 };
 
+/* lan client msg with VLAN ID for Mode 1/2 stats */
+struct ipa_lan_client_msg_vlan {
+	char lanIface[IPA_RESOURCE_NAME_MAX];
+	uint8_t mac[IPA_MAC_ADDR_SIZE];
+	uint16_t vlan_id;  /* 0 = untagged/Mode 0; 1-4094 = VLAN ID for Mode 1/2 */
+};
+
 /**
  * struct ipa_lan_client - lan client data
  * @mac: MAC Address of the client.
@@ -3626,6 +3640,20 @@ struct ipa_lan_client_msg {
  * @inited: Bool to indicate whether client info is set.
  */
 struct ipa_lan_client {
+	uint8_t mac[IPA_MAC_ADDR_SIZE];
+	int8_t client_idx;
+	uint8_t inited;
+};
+
+/**
+ * struct ipa_lan_client_vlan - lan client data
+ * @vlan_id: VLAN ID
+ * @mac: MAC Address of the client.
+ * @client_idx: Client Index.
+ * @inited: Bool to indicate whether client info is set.
+ */
+struct ipa_lan_client_vlan {
+	uint16_t vlan_id;
 	uint8_t mac[IPA_MAC_ADDR_SIZE];
 	int8_t client_idx;
 	uint8_t inited;
@@ -3690,6 +3718,26 @@ struct ipa_tether_device_info_v2 {
 };
 
 /**
+ * struct ipa_tether_device_info_vlan - tether device info for VLAN-based stats
+ * Same as v2 but uses ipa_lan_client_vlan which includes vlan_id field.
+ * @ul_src_pipe: Source pipe of the lan client.
+ * @hdr_len: Header length of the client.
+ * @num_clients: Number of clients connected.
+ */
+struct ipa_tether_device_info_vlan {
+	__s32 ul_src_pipe;
+	__u8 hdr_len;
+	__u8 padding1;
+	__u16 padding2;
+	__u32 num_clients;
+	struct ipa_lan_client_vlan lan_client[IPA_MAX_NUM_HW_PATH_CLIENTS_V2];
+	struct ipa_lan_client_cntr_index
+		lan_client_indices[IPA_MAX_NUM_HW_PATH_CLIENTS_V2];
+	struct ipa_lan_wan_client_cntr_index
+		lan_wan_client_indices[IPA_MAX_NUM_HW_PATH_CLIENTS_V2];
+};
+
+/**
  * enum ipa_vlan_ifaces - vlan interfaces types
  */
 enum ipa_vlan_ifaces {
@@ -3733,6 +3781,12 @@ struct ipa_ioc_bridge_vlan_mapping_info {
 	uint32_t subnet_mask;
 };
 
+enum ipa_device_mode {
+	DEVMODE_DEFAULT   = 0x00,
+	DEVMODE_STABRIDGE = 0x01,
+	DEVMODE_APBRIDGE  = 0x02
+};
+
 struct ipa_coalesce_info {
 	uint8_t qmap_id;
 	uint8_t tcp_enable;
@@ -3744,6 +3798,19 @@ struct ipa_mtu_info {
 	enum ipa_ip_type ip_type;
 	uint16_t mtu_v4;
 	uint16_t mtu_v6;
+};
+
+
+struct GreIpValid_t {
+	uint8_t ipv4_addr_valid : 1;
+	uint8_t ipv6_addr_valid : 1;
+	uint8_t reserved        : 6;
+};
+
+struct GreIfaceIpInfo_t {
+	struct GreIpValid_t is_ip_valid;
+	uint8_t gre_ipv4_addr[4];
+	uint8_t gre_ipv6_addr[16];
 };
 
 struct ipa_odl_ep_info {
@@ -4425,6 +4492,11 @@ struct rgip_info {
 #define IPA_IOC_ADD_RGIP _IOWR(IPA_IOC_MAGIC, \
 				IPA_IOCTL_ADD_RGIP, \
 				struct rgip_info)
+
+#define IPA_IOC_SET_IPOGRE_IFACE_ADDR _IOWR(IPA_IOC_MAGIC, \
+				IPA_IOCTL_SET_IPOGRE_IFACE_ADDR, \
+				struct GreIfaceIpInfo_t)
+
 /*
  * unique magic number of the Tethering bridge ioctls
  */
