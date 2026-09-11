@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018 - 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
- * Copyright (c) 2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.​
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _IPA_WDI3_H_
@@ -267,6 +266,7 @@ struct ipa_wdi_pipe_setup_info {
 	u8 rx_bank_id;
 	u8 rx_pmac_id;
 	u8 mlo_chip_id;
+	u16 ast_index;
 	u8 rx_peer_metadata_ver;
 };
 
@@ -314,6 +314,7 @@ struct ipa_wdi_pipe_setup_info_smmu {
 	u8 rx_bank_id;
 	u8 rx_pmac_id;
 	u8 mlo_chip_id;
+	u16 ast_index;
 	u8 rx_peer_metadata_ver;
 };
 
@@ -779,6 +780,53 @@ int ipa_wdi_bw_monitor(struct ipa_wdi_bw_info *info);
 int ipa_wdi_sw_stats(struct ipa_wdi_tx_info *info);
 int ipa_get_wdi_version(void);
 
+
+/**
+ * ipa_wdi_sbr_connect - function to connect STA bridge TX pipe
+ *
+ * @in: [in] input parameters from client
+ * @out: [out] output params to client
+ *
+ * Note: This function configures only the TX pipe for the STA bridge.
+ *       Should not be called from atomic context.
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_sbr_connect(struct ipa_wdi_conn_in_params *in,
+				struct ipa_wdi_conn_out_params *out);
+
+
+/**
+ * function to disconnect STA bridge TX pipe
+ *
+ * @hdl: hdl to wdi client
+ * Note: Should not be called from atomic context.
+ *
+ * Returns: 0 on success, negative on failure
+ */
+int ipa_wdi_sbr_disconnect(ipa_wdi_hdl_t hdl);
+
+/**
+ * ipa_wdi_sbr_enable_pipe() - Enable STA bridge TX pipe
+ * @hdl: hdl to wdi client
+ *
+ * This function enables only the TX pipe for the STA bridge.
+ * Should not be called from atomic context.
+ *
+ * Return: 0 on success, negative on failure
+ */
+int ipa_wdi_sbr_enable_pipe(ipa_wdi_hdl_t hdl);
+
+/**
+ * ipa_wdi_sbr_disable_pipe() - Disable STA bridge TX pipe
+ * @hdl: hdl to wdi client
+ *
+ * This function disables only the TX pipe for the STA bridge.
+ * Should not be called from atomic context.
+ *
+ * Return: 0 on success, negative on failure
+ */
+int ipa_wdi_sbr_disable_pipe(ipa_wdi_hdl_t hdl);
 #else /* IS_ENABLED(CONFIG_IPA3) */
 
 /**
