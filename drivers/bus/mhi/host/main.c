@@ -812,15 +812,21 @@ static int parse_rsc_event(struct mhi_controller *mhi_cntrl,
 	cookie = MHI_TRE_GET_EV_COOKIE(event);
 	xfer_len = MHI_TRE_GET_EV_LEN(event);
 
-	/* Received out of bound cookie */
-	WARN_ON(cookie >= buf_ring->len);
-
-	/* received out of bound cookie */
+	/*
+	 * Received out of bound cookie. Device is not honoring the
+	 * buf_ring bounds it was configured with, treat it as
+	 * misbehaving and force it into SYS ERR so it can be RDDM'd
+	 * and reset instead of dereferencing an out-of-bound pointer.
+	 */
 	if (cookie >= buf_ring->len) {
 		MHI_ERR(dev, "cookie 0x%08x bufring_len %zu", cookie, buf_ring->len);
 		MHI_ERR(dev, "Processing Event:0x%llx 0x%08x 0x%08x\n",
 			event->ptr, event->dword[0], event->dword[1]);
-		panic("invalid cookie");
+		read_lock_bh(&mhi_cntrl->pm_lock);
+		if (MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
+			mhi_set_mhi_state(mhi_cntrl, MHI_STATE_SYS_ERR);
+		read_unlock_bh(&mhi_cntrl->pm_lock);
+		return -EINVAL;
 	}
 
 	buf_info = buf_ring->base + cookie;
@@ -1096,7 +1102,7 @@ int mhi_process_data_event_ring(struct mhi_controller *mhi_cntrl,
 	struct mhi_event_ctxt *er_ctxt =
 		&mhi_cntrl->mhi_ctxt->er_ctxt[mhi_event->er_index];
 	struct device *dev = &mhi_cntrl->mhi_dev->dev;
-	int count = 0;
+	int count = 0, ret;
 	u32 chan;
 	struct mhi_chan *mhi_chan;
 	dma_addr_t ptr = le64_to_cpu(er_ctxt->rp);
@@ -1136,7 +1142,9 @@ int mhi_process_data_event_ring(struct mhi_controller *mhi_cntrl,
 				event_quota--;
 			} else if (type == MHI_PKT_TYPE_RSC_TX_EVENT &&
 					mhi_chan->type == MHI_CH_TYPE_INBOUND_COALESCED) {
-				parse_rsc_event(mhi_cntrl, local_rp, mhi_chan);
+				ret = parse_rsc_event(mhi_cntrl, local_rp, mhi_chan);
+				if (ret)
+					return ret;
 				event_quota--;
 			}
 		}
