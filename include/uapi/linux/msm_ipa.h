@@ -163,6 +163,7 @@
 #define IPA_IOCTL_ADD_PPPOE_MAPPING             107
 #define IPA_IOCTL_SET_TUPLE_INFO                108
 #define IPA_IOCTL_ADD_RGIP                      109
+#define IPA_IOCTL_SET_IPOGRE_IFACE_ADDR         110
 
 /**
  * max size of the header to be inserted
@@ -608,10 +609,13 @@ enum ipa_client_type {
 	IPA_CLIENT_ETHERNET_CONS3		= 153,
 
 	IPA_CLIENT_ETHERNET_PROD4		= 154,
-	IPA_CLIENT_ETHERNET_CONS4		= 155
+	IPA_CLIENT_ETHERNET_CONS4		= 155,
+
+	/* RESERVED PROD			= 156, */
+	IPA_CLIENT_WLAN_STABRG_CONS	= 157,
 };
 
-#define IPA_CLIENT_MAX (IPA_CLIENT_ETHERNET_CONS4 + 1)
+#define IPA_CLIENT_MAX (IPA_CLIENT_WLAN_STABRG_CONS + 1)
 
 #define IPA_CLIENT_WLAN2_PROD IPA_CLIENT_A5_WLAN_AMPDU_PROD
 #define IPA_CLIENT_Q6_DL_NLO_DATA_PROD IPA_CLIENT_Q6_DL_NLO_DATA_PROD
@@ -705,6 +709,7 @@ enum ipa_client_type {
 
 #define IPA_CLIENT_IS_WLAN_CONS(client) \
 	((client) == IPA_CLIENT_WLAN1_CONS || \
+	(client) == IPA_CLIENT_WLAN_STABRG_CONS || \
 	(client) == IPA_CLIENT_WLAN2_CONS || \
 	(client) == IPA_CLIENT_WLAN3_CONS || \
 	(client) == IPA_CLIENT_WLAN2_CONS1 || \
@@ -3775,6 +3780,12 @@ struct ipa_ioc_bridge_vlan_mapping_info {
 	uint32_t subnet_mask;
 };
 
+enum ipa_device_mode {
+	DEVMODE_DEFAULT   = 0x00,
+	DEVMODE_STABRIDGE = 0x01,
+	DEVMODE_APBRIDGE  = 0x02
+};
+
 struct ipa_coalesce_info {
 	uint8_t qmap_id;
 	uint8_t tcp_enable;
@@ -3786,6 +3797,19 @@ struct ipa_mtu_info {
 	enum ipa_ip_type ip_type;
 	uint16_t mtu_v4;
 	uint16_t mtu_v6;
+};
+
+
+struct GreIpValid_t {
+	uint8_t ipv4_addr_valid : 1;
+	uint8_t ipv6_addr_valid : 1;
+	uint8_t reserved        : 6;
+};
+
+struct GreIfaceIpInfo_t {
+	struct GreIpValid_t is_ip_valid;
+	uint8_t gre_ipv4_addr[4];
+	uint8_t gre_ipv6_addr[16];
 };
 
 struct ipa_odl_ep_info {
@@ -4467,6 +4491,11 @@ struct rgip_info {
 #define IPA_IOC_ADD_RGIP _IOWR(IPA_IOC_MAGIC, \
 				IPA_IOCTL_ADD_RGIP, \
 				struct rgip_info)
+
+#define IPA_IOC_SET_IPOGRE_IFACE_ADDR _IOWR(IPA_IOC_MAGIC, \
+				IPA_IOCTL_SET_IPOGRE_IFACE_ADDR, \
+				struct GreIfaceIpInfo_t)
+
 /*
  * unique magic number of the Tethering bridge ioctls
  */

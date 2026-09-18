@@ -5485,6 +5485,12 @@ static void mhi_dev_pcie_handle_event(struct work_struct *work)
 	mhi_log(mhi->vf_id, MHI_MSG_INFO,
 			"MHI vf_id=0x%x\n", mhi->vf_id);
 
+	/* Enable MHI dev network stack Interface */
+	rc = mhi_dev_net_interface_init(&dev_ops, mhi->vf_id, mhi_hw_ctx->ep_cap.num_vfs);
+	if (rc)
+		mhi_log(mhi->vf_id, MHI_MSG_ERROR,
+				"Failed to initialize mhi_dev_net iface\n");
+
 	if (mhi_dev_pcie_notify_event == MHI_INIT) {
 		rc = mhi_dev_resume_mmio_mhi_init(mhi);
 		if (rc) {
@@ -5500,12 +5506,6 @@ static void mhi_dev_pcie_handle_event(struct work_struct *work)
 			return;
 		}
 	}
-
-	/* Enable MHI dev network stack Interface */
-	rc = mhi_dev_net_interface_init(&dev_ops, mhi->vf_id, mhi_hw_ctx->ep_cap.num_vfs);
-	if (rc)
-		mhi_log(mhi->vf_id, MHI_MSG_ERROR,
-				"Failed to initialize mhi_dev_net iface\n");
 }
 
 static void mhi_dev_setup_virt_device(struct mhi_dev_ctx *mhictx)

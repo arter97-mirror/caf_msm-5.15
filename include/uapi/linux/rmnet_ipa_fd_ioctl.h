@@ -328,8 +328,8 @@ struct wan_ioctl_query_per_vlan_stats {
 	uint8_t stats_type;
 	/* Stats mode: */
 	uint8_t mode;
-	/* Padding for 8-byte alignment of vlan_info */
-	uint8_t reserved[7];
+	/* Number of valid entries written to vlan_info[] (OUTPUT). */
+	uint8_t num_results;
 	/* Per-VLAN statistics information. */
 	struct wan_ioctl_per_vlan_info
 		vlan_info[IPA_MAX_NUM_HW_PATH_CLIENTS_V2];
