@@ -473,6 +473,10 @@ struct qcom_ethqos {
 	/* Work struct for handling phy state */
 	struct work_struct emac_phy_state_work;
 
+	struct delayed_work mdio_icc_idle_work;  /* MDIO ICC idle-timer debounce */
+	struct mutex mdio_icc_lock;              /* serialises ICC peak vote access */
+	bool mdio_icc_peak_active;              /* serialised by mdio_icc_lock */
+
 	struct ethqos_emac_por *por;
 	unsigned int num_por;
 	unsigned int emac_ver;
