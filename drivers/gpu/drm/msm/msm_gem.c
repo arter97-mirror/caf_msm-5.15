@@ -847,7 +847,9 @@ int msm_gem_cpu_prep(struct drm_gem_object *obj, uint32_t op, ktime_t *timeout)
 		op & MSM_PREP_NOSYNC ? 0 : timeout_to_jiffies(timeout);
 	long ret;
 
-	ret = dma_resv_wait_timeout(obj->resv, write, true,  remain);
+        if (!obj || !obj->resv)
+        return -EINVAL;
+        ret = dma_resv_wait_timeout(obj->resv, write, true,  remain);
 	if (ret == 0)
 		return remain == 0 ? -EBUSY : -ETIMEDOUT;
 	else if (ret < 0)
