@@ -4484,7 +4484,15 @@ static int mhi_dev_recover(struct mhi_dev *mhi)
 		if (bhi_max_cnt == MHI_BHI_INTVEC_MAX_CNT) {
 			mhi_log(mhi->vf_id, MHI_MSG_ERROR,
 				"Host failed to set BHI_INTVEC\n");
-			return -EINVAL;
+			/*
+			 * During S4 resume, if the device crashes, resulting in a warm reset
+			 * and sys_err getting set, device will not be able to send an MSI for
+			 * the sys_err since host will not set BHI_INTVEC until device indicates
+			 * MHI ready. This is a deadlock and will result in device becoming
+			 * unresponsive to MHI commands from host, ultimately resulting in loss
+			 * of MHI device on the host side. To prevent this, do not error out if
+			 * BHI_INTVEC is not set even after the timeout expires.
+			 */
 		}
 
 		if (bhi_intvec != 0xffffffff) {
