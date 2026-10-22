@@ -600,6 +600,9 @@ static ssize_t smi230_gyro_show_self_test(struct device *dev,
 				"gyro disabled, enable it firstly\n");
 	}
 
+	/* Provide enough time for sensor to stabilize post activation */
+	smi230_delay(100);
+
 	rslt = smi230_gyro_perform_selftest(p_smi230_dev);
 	mutex_unlock(&interrupt_handling_lock);
 	if (rslt != SMI230_GYRO_SELF_TEST_OK)
