@@ -526,6 +526,21 @@ config HDMI_INPUT_MUX
 	  module will be called hdmi_input_mux.
 
 	  If unsure, say N.
+config FSPAPP_CLIENT
+	tristate "FSPAPP client"
+	help
+	  Enable support for the FSPAPP client driver.
+
+	  This driver provides an interface between the Linux kernel and
+	  the Qualcomm Trusted Execution Environment (QTEE). It is used to
+	  communicate with the FSPAPP trusted application and retrieve the
+	  CEK (Chip/Customer Encryption Key) required by secure services
+	  and platform-specific features.
+
+	  Select this option if your platform requires access to the CEK
+	  through the FSPAPP trusted application running in QTEE.
+
+	  If unsure, say N.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
