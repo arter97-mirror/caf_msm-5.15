@@ -1339,12 +1339,12 @@ static void msm_hsphy_port_state_work(struct work_struct *w)
 		} else {
 			msm_hsphy_notify_charger(phy,
 						POWER_SUPPLY_TYPE_USB_CDP);
-			msm_hsphy_notify_extcon(phy, EXTCON_USB, 1);
 			/*
 			 * Drive a pulse on DP to ensure proper CDP detection
 			 */
 			dev_info(phy->phy.dev, "Connected to CDP, pull DP up\n");
 			usb_phy_drive_dp_pulse(&phy->phy);
+			msm_hsphy_notify_extcon(phy, EXTCON_USB, 1);
 		}
 		/*
 		 * Pass through to check if cable got disconnected

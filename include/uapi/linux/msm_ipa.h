@@ -2861,6 +2861,7 @@ struct ipa_ioc_tx_intf_prop {
 	char hdr_name[IPA_RESOURCE_NAME_MAX];
 	enum ipa_hdr_l2_type hdr_l2_type;
 	uint32_t tc_bmap;
+	enum ipa_client_type sta_pipe;
 };
 
 /**
