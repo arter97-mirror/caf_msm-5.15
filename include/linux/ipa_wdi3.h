@@ -220,6 +220,7 @@ struct ipa_wdi_reg_intf_in_params {
 	u8 is_tx1_used;
 	ipa_wdi_hdl_t hdl;
 	u8 is_rx1_used;
+	bool is_sta_iface;
 };
 
 /**
