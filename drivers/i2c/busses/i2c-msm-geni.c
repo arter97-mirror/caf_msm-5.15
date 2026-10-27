@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/clk.h>
@@ -29,6 +29,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/sched/clock.h>
 #include <linux/slab.h>
+#include <linux/compiler.h>
 #include <soc/qcom/boot_stats.h>
 
 #define SE_GENI_TEST_BUS_CTRL	0x44 //GENI_TEST_BUS_CTRL
@@ -912,6 +913,7 @@ static void gi2c_ev_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb_str,
 {
 	struct geni_i2c_dev *gi2c;
 	u32 m_stat;
+	u16 flags;
 
 	if (!ptr || !cb_str) {
 		pr_err("%s: Invalid ev_cb buffer\n", __func__);
@@ -921,6 +923,10 @@ static void gi2c_ev_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb_str,
 	gi2c = (struct geni_i2c_dev *)ptr;
 	m_stat = cb_str->status;
 
+	if (!READ_ONCE(gi2c->cur))
+		return;
+
+	flags = READ_ONCE(gi2c->cur->flags);
 	switch (cb_str->cb_event) {
 	case MSM_GPI_QUP_ERROR:
 	case MSM_GPI_QUP_SW_ERROR:
@@ -932,7 +938,7 @@ static void gi2c_ev_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb_str,
 	case MSM_GPI_QUP_NOTIFY:
 	case MSM_GPI_QUP_CH_ERROR:
 		if (m_stat & M_GP_IRQ_1_EN)
-			geni_i2c_check_addr_data_nack(gi2c, gi2c->cur->flags);
+			geni_i2c_check_addr_data_nack(gi2c, flags);
 		if (m_stat & M_GP_IRQ_3_EN)
 			geni_i2c_err(gi2c, I2C_BUS_PROTO);
 		if (m_stat & M_GP_IRQ_4_EN)
@@ -944,7 +950,7 @@ static void gi2c_ev_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb_str,
 	}
 	if (cb_str->cb_event != MSM_GPI_QUP_NOTIFY) {
 		I2C_LOG_ERR(gi2c->ipcl, false, gi2c->dev,
-			    "GSI QN err:0x%x, status:0x%x, err:%d\n",
+			    "GSI QN err:0x%x, status:0x%x, cb_event:%d\n",
 			    cb_str->error_log.error_code,
 			    m_stat, cb_str->cb_event);
 		gi2c->gsi_err = true;
@@ -956,13 +962,23 @@ static void gi2c_gsi_cb_err(struct msm_gpi_dma_async_tx_cb_param *cb,
 								char *xfer)
 {
 	struct geni_i2c_dev *gi2c = cb->userdata;
+	struct i2c_msg *cur;
+	u16 flags;
+
+	cur = READ_ONCE(gi2c->cur);
+	if (!cur) {
+		geni_i2c_err(gi2c, GENI_SPURIOUS_IRQ);
+		I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev, "%s: Invalid gi2c dev\n", __func__);
+		return;
+	}
 
 	if (cb->status & DM_I2C_CB_ERR) {
+		flags = READ_ONCE(cur->flags);
 		I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev,
 			    "%s TCE Unexpected Err, stat:0x%x\n",
 				xfer, cb->status);
 		if (cb->status & (BIT(GP_IRQ1) << 5))
-			geni_i2c_check_addr_data_nack(gi2c, gi2c->cur->flags);
+			geni_i2c_check_addr_data_nack(gi2c, flags);
 		if (cb->status & (BIT(GP_IRQ3) << 5))
 			geni_i2c_err(gi2c, I2C_BUS_PROTO);
 		if (cb->status & (BIT(GP_IRQ4) << 5))
@@ -1057,6 +1073,8 @@ static void gi2c_gsi_rx_cb(void *ptr)
 {
 	struct msm_gpi_dma_async_tx_cb_param *rx_cb = ptr;
 	struct geni_i2c_dev *gi2c;
+	struct i2c_msg *cur;
+	u16 flags;
 
 	if (!(rx_cb && rx_cb->userdata)) {
 		pr_err("%s: Invalid rx_cb buffer\n", __func__);
@@ -1065,13 +1083,15 @@ static void gi2c_gsi_rx_cb(void *ptr)
 
 	gi2c = rx_cb->userdata;
 
-	if (!gi2c->cur) {
+	cur = READ_ONCE(gi2c->cur);
+	if (!cur) {
 		geni_i2c_err(gi2c, GENI_SPURIOUS_IRQ);
 		complete(&gi2c->xfer);
 		return;
 	}
 
-	if (gi2c->cur->flags & I2C_M_RD) {
+	flags = READ_ONCE(cur->flags);
+	if (flags & I2C_M_RD) {
 		gi2c_gsi_cb_err(rx_cb, "RX");
 		complete(&gi2c->xfer);
 	}
