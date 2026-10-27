@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2011-2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #include <linux/types.h>	/* u32 */
 #include <linux/kernel.h>	/* pr_info() */
@@ -1494,6 +1495,27 @@ int sps_bam_pipe_transfer_one(struct sps_bam *dev,
 	SPS_DBG(dev, "sps:BAM %pa pipe %d addr 0x%pK size 0x%x flags 0x%x\n",
 			BAM_ID(dev), pipe_index,
 			(void *)(long)addr, size, flags);
+
+	/* Guard against a pipe that was freed (NULL) or never assigned */
+	if (!BAM_PIPE_IS_ASSIGNED(pipe)) {
+		SPS_ERR(dev,
+			"sps:Transfer on unassigned/freed pipe: BAM %pa pipe %d\n",
+			BAM_ID(dev), pipe_index);
+		return SPS_ERROR;
+	}
+
+	/*
+	 * Guard against a pipe whose descriptor FIFO state was torn down
+	 * (e.g. by a concurrent failed sps_connect()/pipe_clear()) while
+	 * this transfer was in flight.
+	 */
+	if ((!pipe->sys.no_queue && pipe->sys.desc_cache == NULL) ||
+		pipe->sys.desc_buf == NULL) {
+		SPS_ERR(dev,
+			"sps:Pipe descriptor state not valid for transfer: BAM %pa pipe %d\n",
+			BAM_ID(dev), pipe_index);
+		return SPS_ERROR;
+	}
 
 	/* Is this a BAM-to-BAM or satellite connection? */
 	if ((pipe->state & (BAM_STATE_BAM2BAM | BAM_STATE_REMOTE))) {
