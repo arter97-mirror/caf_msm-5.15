@@ -23,11 +23,64 @@ void qcom_ethqos_serdes_power_down(struct qcom_ethqos *ethqos)
 	ethqos->curr_serdes_speed = 0;
 }
 
+static int qcom_ethqos_serdes3_soft_reset(struct qcom_ethqos *ethqos)
+{
+	int ret = 0;
+	unsigned int val;
+
+	writel_relaxed(0x01, ethqos->sgmii_base + QSERDES3_PCS_SW_RESET);
+	writel_relaxed(0x00, ethqos->sgmii_base + QSERDES3_PCS_SW_RESET);
+	usleep_range(3000, 5000);
+	writel_relaxed(0x01, ethqos->sgmii_base + QSERDES3_PCS_PHY_START);
+	usleep_range(3000, 5000);
+
+	ret = readl_poll_timeout(ethqos->sgmii_base + QSERDES3_COM_C_READY_STATUS,
+				 val, val & QSERDES3_COM_C_READY, 1000, 500000);
+	if (ret) {
+		ETHQOSERR("QSERDES3_COM_C_READY_STATUS timed out\n");
+		goto err_ret;
+	}
+
+	ret = readl_poll_timeout(ethqos->sgmii_base + QSERDES3_PCS_PCS_READY_STATUS,
+				 val, val & QSERDES3_PCS_READY, 1000, 500000);
+	if (ret) {
+		ETHQOSERR("PCS_READY timed out\n");
+		goto err_ret;
+	}
+
+	ret = readl_poll_timeout(ethqos->sgmii_base + QSERDES3_PCS_PCS_READY_STATUS,
+				 val, val & QSERDES3_PCS_SGMIIPHY_READY, 1000, 500000);
+	if (ret) {
+		ETHQOSERR("SGMIIPHY_READY timed out\n");
+		goto err_ret;
+	}
+
+	ret = readl_poll_timeout(ethqos->sgmii_base + QSERDES3_COM_CMN_STATUS,
+				 val, val & QSERDES3_COM_C_PLL_LOCKED, 1000, 5000000);
+	if (ret) {
+		ETHQOSERR("PLL Lock Status timed out\n");
+		goto err_ret;
+	}
+
+	return ret;
+
+err_ret:
+	ETHQOSERR("Serdes soft reset failed\n");
+	return ret;
+}
+
 void qcom_ethqos_serdes_soft_reset(struct qcom_ethqos *ethqos)
 {
 	int ret = 0;
 	int retry = 500;
 	unsigned int val;
+
+	if (ethqos->emac_ver == EMAC_HW_v3_1_0) {
+		ret = qcom_ethqos_serdes3_soft_reset(ethqos);
+		if (ret)
+			ETHQOSERR("SerDes3 soft reset failed\n");
+		return;
+	}
 
 	writel_relaxed(0x01, ethqos->sgmii_base + QSERDES_PCS_SW_RESET);
 	writel_relaxed(0x00, ethqos->sgmii_base + QSERDES_PCS_SW_RESET);
