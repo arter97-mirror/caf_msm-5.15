@@ -596,6 +596,7 @@ void *qcom_ethqos_get_priv(struct qcom_ethqos *ethqos);
 int ppsout_config(struct stmmac_priv *priv, struct pps_cfg *eth_pps_cfg);
 int ethqos_phy_power_on(struct qcom_ethqos *ethqos);
 void  ethqos_phy_power_off(struct qcom_ethqos *ethqos);
+int ethqos_phy_gpio_down_direct(struct stmmac_priv *priv, const char *gpio_node);
 
 u16 dwmac_qcom_select_queue(struct net_device *dev,
 			    struct sk_buff *skb,
