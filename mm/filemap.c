@@ -2968,7 +2968,7 @@ static int lock_page_maybe_drop_mmap(struct vm_fault *vmf, struct page *page,
 	} else
 		__lock_page(page);
 
-	trace_android_vh_lock_folio_drop_mmap_end(false, &tsk, vmf, page, *fpin);
+	trace_android_vh_lock_folio_drop_mmap_end(true, &tsk, vmf, page, *fpin);
 	return 1;
 }
 
