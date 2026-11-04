@@ -496,18 +496,6 @@ static int __bw_hwmon_sample_end(struct bw_hwmon *hwmon)
 		return __bw_hwmon_sw_sample_end(hwmon);
 }
 
-static int bw_hwmon_sample_end(struct bw_hwmon *hwmon)
-{
-	unsigned long flags;
-	int wake;
-
-	spin_lock_irqsave(&sample_irq_lock, flags);
-	wake = __bw_hwmon_sample_end(hwmon);
-	spin_unlock_irqrestore(&sample_irq_lock, flags);
-
-	return wake;
-}
-
 static unsigned long to_mbps_zone(struct hwmon_node *node, unsigned long mbps)
 {
 	int i;
@@ -1579,12 +1567,25 @@ static irqreturn_t
 __bwmon_intr_handler(int irq, void *dev, enum mon_reg_type type)
 {
 	struct bwmon *m = dev;
+	unsigned long flags;
+	u32 intr_status;
+	int wake;
 
-	m->intr_status = mon_irq_status(m, type);
-	if (!m->intr_status)
+	intr_status = mon_irq_status(m, type);
+	if (!intr_status)
 		return IRQ_NONE;
 
-	if (bw_hwmon_sample_end(&m->hw) > 0)
+	/*
+	 * Assign m->intr_status inside sample_irq_lock to prevent a data
+	 * race with get_zone(), which reads m->intr_status while holding
+	 * the same lock from the workqueue path.
+	 */
+	spin_lock_irqsave(&sample_irq_lock, flags);
+	m->intr_status = intr_status;
+	wake = __bw_hwmon_sample_end(&m->hw);
+	spin_unlock_irqrestore(&sample_irq_lock, flags);
+
+	if (wake > 0)
 		return IRQ_WAKE_THREAD;
 
 	return IRQ_HANDLED;
