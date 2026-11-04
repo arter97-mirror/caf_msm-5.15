@@ -1134,7 +1134,8 @@ int mhi_process_data_event_ring(struct mhi_controller *mhi_cntrl,
 			if (likely(type == MHI_PKT_TYPE_TX_EVENT)) {
 				parse_xfer_event(mhi_cntrl, local_rp, mhi_chan);
 				event_quota--;
-			} else if (type == MHI_PKT_TYPE_RSC_TX_EVENT) {
+			} else if (type == MHI_PKT_TYPE_RSC_TX_EVENT &&
+					mhi_chan->type == MHI_CH_TYPE_INBOUND_COALESCED) {
 				parse_rsc_event(mhi_cntrl, local_rp, mhi_chan);
 				event_quota--;
 			}
