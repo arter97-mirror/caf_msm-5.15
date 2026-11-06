@@ -3148,6 +3148,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
@@ -3181,6 +3184,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
@@ -3207,6 +3213,9 @@ static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,
 				spin_lock_irqsave(&ctx->fl->aqlock, flags);
 				if (!ctx->is_work_done) {
 					ctx->is_early_wakeup = false;
+					/* restore re-queueable state when work is not done */
+					if (hlist_unhashed(&ctx->asyncn))
+						hlist_add_fake(&ctx->asyncn);
 					*ptr_isworkdone = false;
 				} else
 					*ptr_isworkdone = true;
