@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/module.h>
@@ -80,6 +80,26 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 	return ret;
 }
 EXPORT_SYMBOL(qseecom_send_command);
+
+int qseecom_process_listener_from_smcinvoke(uint32_t *result,
+	u64 *response_type, unsigned int *data)
+{
+	int32_t ret = -1;
+
+	/* process listener from smcinvoke*/
+	if (qseecom_fun_ops.qseecom_process_listener_from_smcinvoke) {
+		ret = qseecom_fun_ops.qseecom_process_listener_from_smcinvoke(result,
+				response_type, data);
+		if (ret != 0)
+			pr_err("%s: failed with =%d\n", __func__, ret);
+	} else {
+		pr_err_ratelimited("Qseecom driver is not yet up or qseecom not enabled.\n");
+		ret = -EAGAIN;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(qseecom_process_listener_from_smcinvoke);
 
 #if IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
 int qseecom_create_key_in_slot(uint8_t usage_code, uint8_t key_slot,

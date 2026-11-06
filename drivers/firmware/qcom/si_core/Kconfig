@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config QCOM_SI_CORE
+	tristate "Secure QTEE Communication Support"
+	depends on QCOM_SCM
+	help
+	  Enable SI-CORE driver which supports capability based secure
+	  communication between QTEE and VM. Using SI-CORE, kernel can
+	  issue	calls to QTEE or TAs to request a service or exposes services
+	  to QTEE and TAs. The SI-CORE implements the necessary marshaling of
+	  messages with QTEE.
+
+config QCOM_SCM_INVOKE_LEGACY
+	bool "Use Legacy SCM Invoke Interface"
+	depends on QCOM_SI_CORE
+	default y if ARM && !ARM64
+	help
+	  Use legacy SCM invoke instead of default cache-coherent
+	  SCM invoke interface. Legacy SCM interface requires
+	  flushing and invalidating of in-out buffers
+	  before and after an SCM call is made.
+
+	  Enable this only for ARMv7 or platforms lacking cache-coherent
+	  SCM support.
+
+config QCOM_SI_CORE_WQ
+	bool "Use direct invocation for RELEASE requests"
+	depends on QCOM_SI_CORE
+	help
+	  Use a kernel thread to issue RELEASE request to QTEE and TAs
+	  instead of using asynchronous messages. It may slow down the system
+	  and prone to failure as it uses direct invocation which requires
+	  extra resources from QTEE.
+
+	  Enable if only QTEE does not support asynchronous message.
+
+config QCOM_SI_CORE_ADCI
+	bool "Use ADCI thread to cater service requests from other VMs"
+	depends on QCOM_SI_CORE
+	help
+	  Use a kernel thread to register callback service to QTEE that
+	  will cater requests initiated by other VMs requiring services
+	  hosted by primary VM.
+
+	  This option should not be enabled on guest virtual machines.
+	  The initialization and shutdown of the ADCI thread within the
+	  SI Core component are unnecessary in guest VM environments, as
+	  the host operating system typically handles ADCI functionality.
+
+	  Enable this option if there are multiple VMs and services are
+	  hosted only by primary VM.
+
+	  Disable this option to avoid ADCI thread management in guest VMs.
+
+config QCOM_SI_CORE_MEM_FFA
+	bool "Use FFA ABI for memory sharing with QTEE"
+	depends on QCOM_SI_CORE && ARM_FFA_TRANSPORT
+	help
+	 Uses the FFA driver to share memory with QTEE using the FFA ABI.
+	 When this option is enabled, memory object as well as direct
+	 invocation request and response buffer memory is shared with QTEE
+	 via FFA.
+
+	 Enable this option only if QTEE supports FFA memory ABIs.
+
+config QCOM_SI_CORE_DOORBELL
+	bool "Enable support for Doorbell interrupts from QTEE"
+	depends on QCOM_SI_CORE
+	help
+	 The doorbell interrupt mechanism allows QTEE to send an asynchronous
+	 message to a VM. The message contains one or more invoke calls for
+	 the VM to execute on handling the interrupt.
+
+	 Enable this option only if QTEE supports Doorbell interrupts.
+
